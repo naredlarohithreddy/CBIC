@@ -1,16 +1,22 @@
 import os
 import pandas as pd
 import sqlite3
-import re 
+import re
+from dotenv import load_dotenv
 from langchain_ibm import WatsonxLLM
 from pathlib import Path
-import os
+
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+
 from pydantic import BaseModel
 import uvicorn
+
 import asyncio
 import subprocess
 import sys
+
+load_dotenv()
 
 def executing_data_files(files_path):
     result=subprocess.run([sys.executable,files_path],capture_output=True,text=True)
@@ -150,7 +156,7 @@ def generate_SQL_query(table_description, user_input, sql_llm):
 
     prefix_sql=f'''As an expert SQL query writer specializing in SQLite, your goal is to craft efficient, optimized SQL queries tailored to user needs. Your queries should seamlessly interact with SQLite databases, making use of appropriate type casting to float when calculating percentages. Avoid using multiple JOIN statements directly in the main query. Instead, use Common Table Expressions (CTEs) or subqueries to simplify complex join logic and enhance readability. Note that SQLite does not support RIGHT JOIN or OUTER JOIN.
 
-    Use appropriate column names from the tables provided in the table_description.
+    Use appropriate column names from the tables provided in the table_description.When doing the joins most of the columns from the two tables have same name so check while joining the tables.
     Use type casting to float when calculating percentages.Use standard date formats when representing quarters, fiscal years, or time periods.
 
     Output Requirements: Based on user queries, the output should and Avoid directly referencing columns that are not present in the selected table unless the query requires a join with another table (in which case, use a subquery or a Common Table Expression (CTE)):
@@ -415,6 +421,8 @@ class Stateinput(BaseModel):
     state: str
 
 app = FastAPI(openapi_version="3.0.3")
+static_dir='./newcharts'
+app.mount("/newcharts", StaticFiles(directory=static_dir), name="static")
 
 @app.post("/generate/chatbot")
 async def generate1(input: Userinput):
@@ -423,7 +431,7 @@ async def generate1(input: Userinput):
     HTML_FILE_INDUSTRY = f"./newcharts/contributingind.html"
     result = await asyncio.to_thread(generate_pipeline, sql_llm, reviewer_llm, user_input, database_name, table_description, HTML_FILE_INDUSTRY)
     
-    return result
+    return result,HTML_FILE_INDUSTRY
 
 @app.post("/generate/state")
 async def generate2(input: Stateinput):
@@ -433,7 +441,7 @@ async def generate2(input: Stateinput):
     q1 = f'what are the top five industries contributing to the revenue in {user_input}'
     result = await asyncio.to_thread(generate_pipeline, sql_llm, reviewer_llm, q1, database_name, table_description, HTML_FILE_QUARTER)
     
-    return result
+    return result,HTML_FILE_QUARTER
 
 @app.post("/generate/dispute")
 async def generate3(input: Stateinput):
@@ -443,7 +451,7 @@ async def generate3(input: Stateinput):
     q1 = f'count of different disputes types in {user_input}'
     result = await asyncio.to_thread(generate_pipeline, sql_llm, reviewer_llm, q1, database_name, table_description, HTML_FILE_DISPUTE)
     
-    return result
+    return result,HTML_FILE_DISPUTE
 
 if __name__ == '__main__':
     data_file_path='./v4'
